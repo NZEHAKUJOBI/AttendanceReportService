@@ -21,7 +21,7 @@ namespace AttendanceReportService.Controllers
         [HttpPost("receive")]
         public async Task<IActionResult> ReceiveReport([FromBody] ReportRequest request)
         {
-            if (request == null || request.Reports == null || !request.Reports.Any())
+            if (request?.Reports == null || !request.Reports.Any())
                 return BadRequest(new { status = "error", message = "Empty report list" });
 
             var (success, message) = await _reportService.SaveReportsAsync(request);
@@ -35,8 +35,8 @@ namespace AttendanceReportService.Controllers
         [HttpGet("facility-summary")]
         public async Task<IActionResult> GetFacilitySummary()
         {
-            var summary = await _reportService.GetFacilitySummaryAsync();
-            return Ok(summary);
+            var result = await _reportService.GetFacilitySummaryAsync();
+            return Ok(result);
         }
     }
 }
