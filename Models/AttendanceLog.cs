@@ -1,11 +1,10 @@
 using System;
 
-
 namespace AttendanceReportService.Models
 {
     public class AttendanceLog
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public Guid UserId { get; set; }
         public string FullName { get; set; }
         public string Designation { get; set; }

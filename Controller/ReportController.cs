@@ -21,6 +21,9 @@ namespace AttendanceReportService.Controllers
         [HttpPost("receive")]
         public async Task<IActionResult> ReceiveReport([FromBody] ReportRequest request)
         {
+            if (request == null || request.Reports == null || !request.Reports.Any())
+                return BadRequest(new { status = "error", message = "Empty report list" });
+
             var (success, message) = await _reportService.SaveReportsAsync(request);
 
             if (!success)
