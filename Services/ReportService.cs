@@ -17,12 +17,12 @@ namespace AttendanceReportService.Services
         /// <summary>
         /// Saves received attendance reports to the database.
         /// </summary>
-        public async Task<(bool Success, string Message)> SaveReportsAsync(
-            List<AttendanceLogDto> reports
-        )
+        public async Task<(bool Success, string Message)> SaveReportsAsync(ReportRequest request)
         {
-            if (reports == null || reports.Count == 0)
+            if (request?.Reports == null || request.Reports.Count == 0)
                 return (false, "Empty report list");
+
+            var reports = request.Reports;
 
             var entities = reports
                 .Select(r => new AttendanceLog
