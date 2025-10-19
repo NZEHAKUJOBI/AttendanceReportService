@@ -4,7 +4,7 @@ namespace AttendanceReportService.Models
 {
     public class AttendanceLog
     {
-        public Guid Id { get; set; }
+        public String Id { get; set; }
         public Guid UserId { get; set; }
         public string FullName { get; set; }
         public string Designation { get; set; }

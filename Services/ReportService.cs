@@ -27,6 +27,7 @@ namespace AttendanceReportService.Services
             var entities = reports
                 .Select(r => new AttendanceLog
                 {
+                    Id = r.Id,
                     UserId = r.UserId,
                     FullName = r.FullName,
                     Designation = r.Designation,
