@@ -1,27 +1,19 @@
-# ------------------------------
-# Stage 1: Build
-# ------------------------------
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /app
+WORKDIR /src
 
-# Copy everything and restore dependencies
+# Copy csproj and restore
+COPY ["AttendanceReportService/AttendanceReportService.csproj", "AttendanceReportService/"]
+RUN dotnet restore "AttendanceReportService/AttendanceReportService.csproj"
+
+# Copy everything else and build
 COPY . .
-RUN dotnet restore
+WORKDIR "/src/AttendanceReportService"
+RUN dotnet publish -c Release -o /app/publish
 
-# Build and publish the app to /out
-RUN dotnet publish -c Release -o out
-
-# ------------------------------
-# Stage 2: Runtime
-# ------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# Runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
-
-# Copy published files
-COPY --from=build /app/out .
-
-# Expose port 8080
+COPY --from=build /app/publish .
 EXPOSE 8080
-
-# Start the app
 ENTRYPOINT ["dotnet", "AttendanceReportService.dll"]
