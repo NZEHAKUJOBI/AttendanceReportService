@@ -9,5 +9,7 @@ namespace AttendanceReportService.Data
             : base(options) { }
 
         public DbSet<AttendanceLog> AttendanceLogs { get; set; }
+        public DbSet<User> Users { get; set; }
+        
     }
 }

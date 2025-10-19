@@ -5,7 +5,9 @@ namespace AttendanceReportService.Models
     enum UserRole
     {
         Admin,
-        User,
+        Adhoc,
+        Officer,
+        Compliance, 
     }
 
     public class User
