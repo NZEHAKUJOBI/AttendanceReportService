@@ -1,8 +1,8 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using AttendanceReportService.Dto;
 using AttendanceReportService.Models;
 using AttendanceReportService.Services;
-using AttendanceReportService.Dto;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace AttendanceReportService.Controllers
@@ -19,13 +19,12 @@ namespace AttendanceReportService.Controllers
         }
 
         [HttpPost("receive")]
-        [SwaggerOperation(Summary = "Receive attendance reports from clients")]    
-        public async Task<IActionResult> ReceiveReport([FromBody] List<AttendanceLogDto> reports)
+        public async Task<IActionResult> ReceiveReport([FromBody] ReportRequest request)
         {
-            (bool success, string message) = await _reportService.SaveReportsAsync(reports);
+            var (success, message) = await _reportService.SaveReportsAsync(request);
 
             if (!success)
-                return BadRequest(new { status = "failed", message });
+                return BadRequest(new { status = "error", message });
 
             return Ok(new { status = "success", message });
         }
