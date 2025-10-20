@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AttendanceReportService.Models
 {
+    [Table("attendance_logs")]
     public class AttendanceLog
     {
         public String Id { get; set; }
