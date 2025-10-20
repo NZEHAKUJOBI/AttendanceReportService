@@ -7,7 +7,7 @@ namespace AttendanceReportService.Models
     public class AttendanceLog
     {
         [Column("id")]
-        public String Id { get; set; }
+        public Guid Id { get; set; }
 
         [Column("user_id")]
         public Guid UserId { get; set; }

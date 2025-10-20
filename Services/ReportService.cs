@@ -27,7 +27,9 @@ namespace AttendanceReportService.Services
             var entities = reports
                 .Select(r => new AttendanceLog
                 {
-                    Id = r.Id,
+                    Id = Guid.TryParse(r.Id.ToString(), out var parsedId)
+                        ? parsedId
+                        : Guid.NewGuid(), // 👈 FIX HERE
                     UserId = r.UserId,
                     FullName = r.FullName,
                     Designation = r.Designation,
