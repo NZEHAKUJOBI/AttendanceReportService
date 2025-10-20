@@ -20,17 +20,24 @@ namespace AttendanceReportService.BackgroundJobs
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                using var scope = _scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<DeviceHealthService>();
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var service = scope.ServiceProvider.GetRequiredService<DeviceHealthService>();
 
-                int updated = await service.MarkOfflineDevicesAsync(15);
+                    int updated = await service.MarkOfflineDevicesAsync(15);
 
-                if (updated > 0)
-                    _logger.LogInformation(
-                        "⚠️ {Count} devices marked offline at {Time}",
-                        updated,
-                        DateTime.UtcNow
-                    );
+                    if (updated > 0)
+                        _logger.LogInformation(
+                            "⚠️ {Count} devices marked offline at {Time}",
+                            updated,
+                            DateTime.UtcNow
+                        );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error running health monitor service.");
+                }
 
                 await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
             }

@@ -19,38 +19,43 @@ namespace AttendanceReportService.Services
         /// </summary>
         public async Task<(bool Success, string Message)> SaveDeviceHealthAsync(DeviceHealthDto dto)
         {
-            if (dto == null)
-                return (false, "Invalid device health data");
-
-            var existingRecord = await _context.DeviceHealths.FirstOrDefaultAsync(d =>
-                d.DeviceName == dto.DeviceName && d.Facility == dto.Facility
-            );
-
-            if (existingRecord != null)
+            try
             {
-                // Update existing record
-                existingRecord.IsOnline = dto.IsOnline;
-                existingRecord.IpAddress = dto.IpAddress;
-                existingRecord.LastChecked = DateTime.UtcNow;
-            }
-            else
-            {
-                // Create new record
-                var newRecord = new DeviceHealth
+                if (dto == null)
+                    return (false, "Invalid device health data");
+
+                var existingRecord = await _context.DeviceHealths.FirstOrDefaultAsync(d =>
+                    d.DeviceName == dto.DeviceName && d.Facility == dto.Facility
+                );
+
+                if (existingRecord != null)
                 {
-                    Id = Guid.NewGuid(),
-                    DeviceName = dto.DeviceName,
-                    IsOnline = dto.IsOnline,
-                    Facility = dto.Facility,
-                    IpAddress = dto.IpAddress,
-                    LastChecked = DateTime.UtcNow,
-                };
+                    existingRecord.IsOnline = dto.IsOnline;
+                    existingRecord.IpAddress = dto.IpAddress;
+                    existingRecord.LastChecked = DateTime.UtcNow;
+                }
+                else
+                {
+                    await _context.DeviceHealths.AddAsync(
+                        new DeviceHealth
+                        {
+                            Id = Guid.NewGuid(),
+                            DeviceName = dto.DeviceName,
+                            IsOnline = dto.IsOnline,
+                            Facility = dto.Facility,
+                            IpAddress = dto.IpAddress,
+                            LastChecked = DateTime.UtcNow,
+                        }
+                    );
+                }
 
-                await _context.DeviceHealths.AddAsync(newRecord);
+                await _context.SaveChangesAsync();
+                return (true, "Device health status saved successfully.");
             }
-
-            await _context.SaveChangesAsync();
-            return (true, "Device health status saved successfully.");
+            catch (Exception ex)
+            {
+                return (false, $"Error saving device health: {ex.Message}");
+            }
         }
 
         /// <summary>
