@@ -10,6 +10,6 @@ namespace AttendanceReportService.Data
 
         public DbSet<AttendanceLog> AttendanceLogs { get; set; }
         public DbSet<User> Users { get; set; }
-        
+        public DbSet<DeviceHealth> DeviceHealths { get; set; }
     }
 }

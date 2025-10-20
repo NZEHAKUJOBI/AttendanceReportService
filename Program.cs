@@ -1,4 +1,5 @@
 using System.Text;
+using AttendanceReportService.BackgroundJobs;
 using AttendanceReportService.Data;
 using AttendanceReportService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -43,6 +44,8 @@ builder.Services.AddCors(options =>
     );
 });
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<DeviceHealthService>();
+builder.Services.AddScoped<HealthMonitorService>();
 
 var app = builder.Build();
 
