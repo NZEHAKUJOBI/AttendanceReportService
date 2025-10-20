@@ -16,6 +16,7 @@ namespace AttendanceReportService.Services
 
         /// <summary>
         /// Saves received attendance reports to the database.
+        /// Ensures all DateTime values are stored as UTC to avoid PostgreSQL errors.
         /// </summary>
         public async Task<(bool Success, string Message)> SaveReportsAsync(ReportRequest request)
         {
@@ -27,20 +28,25 @@ namespace AttendanceReportService.Services
             var entities = reports
                 .Select(r => new AttendanceLog
                 {
-                    Id = Guid.TryParse(r.Id.ToString(), out var parsedId)
+                    Id = Guid.TryParse(r.Id?.ToString(), out var parsedId)
                         ? parsedId
-                        : Guid.NewGuid(), // 👈 FIX HERE
+                        : Guid.NewGuid(),
+
                     UserId = r.UserId,
-                    FullName = r.FullName,
+                    FullName = r.FullName?.Trim(),
                     Designation = r.Designation,
                     Facility = r.Facility,
                     PhoneNumber = r.PhoneNumber,
-                    CheckInDate = r.CheckInDate,
-                    CheckOutDate = r.CheckOutDate,
-                    CheckIn = r.CheckIn,
-                    CheckOut = r.CheckOut,
+
+                    // ✅ Normalize all date values to UTC
+                    CheckInDate = ToUtc(r.CheckInDate),
+                    CheckOutDate = ToUtc(r.CheckOutDate),
+                    CheckIn = ToUtc(r.CheckIn),
+                    CheckOut = ToUtc(r.CheckOut),
+
                     Message = r.Message,
                     Success = r.Success,
+                    ReceivedAt = DateTime.UtcNow,
                 })
                 .ToList();
 
@@ -48,6 +54,22 @@ namespace AttendanceReportService.Services
             await _context.SaveChangesAsync();
 
             return (true, $"{entities.Count} records saved successfully.");
+        }
+
+        /// <summary>
+        /// Converts any DateTime? to UTC with correct DateTimeKind.
+        /// </summary>
+        private static DateTime? ToUtc(DateTime? value)
+        {
+            if (value == null)
+                return null;
+
+            return value.Value.Kind switch
+            {
+                DateTimeKind.Utc => value.Value,
+                DateTimeKind.Local => value.Value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc),
+            };
         }
 
         /// <summary>
