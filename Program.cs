@@ -1,8 +1,10 @@
 using System.Text;
 using AttendanceReportService.BackgroundJobs;
 using AttendanceReportService.Data;
+using AttendanceReportService.Models;
 using AttendanceReportService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -46,6 +48,42 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<DeviceHealthService>();
 builder.Services.AddScoped<HealthMonitorService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.EnableAnnotations(); // ✅ Enables SwaggerOperation, SwaggerResponse, etc.
+
+    // ✅ Add JWT support to Swagger UI
+    options.AddSecurityDefinition(
+        "Bearer",
+        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            Description = "Enter 'Bearer' followed by your token.",
+        }
+    );
+
+    options.AddSecurityRequirement(
+        new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        {
+            {
+                new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                {
+                    Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                    {
+                        Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                        Id = "Bearer",
+                    },
+                },
+                Array.Empty<string>()
+            },
+        }
+    );
+});
 
 var app = builder.Build();
 
@@ -59,6 +97,27 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
+}
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+
+    if (!context.Users.Any(u => u.Role == UserRole.Admin))
+    {
+        var hasher = new PasswordHasher<User>();
+        var admin = new User
+        {
+            FullName = "System Administrator",
+            Email = "admin@attendanceservice.com",
+            PasswordHash = hasher.HashPassword(null, "Admin@123"),
+            Role = UserRole.Admin,
+        };
+
+        context.Users.Add(admin);
+        context.SaveChanges();
+        Console.WriteLine("✅ Admin user seeded successfully.");
+    }
 }
 
 app.Run();
