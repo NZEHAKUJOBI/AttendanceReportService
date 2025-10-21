@@ -1,7 +1,11 @@
+using System.Globalization;
 using AttendanceReportService.Data;
 using AttendanceReportService.Dto;
 using AttendanceReportService.Models;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace AttendanceReportService.Services
 {
@@ -90,6 +94,144 @@ namespace AttendanceReportService.Services
                 .ToListAsync();
 
             return result.Cast<object>().ToList();
+        }
+
+        // ✅ Existing methods remain unchanged (SaveReportsAsync, ToUtc, GetFacilitySummaryAsync)
+
+        /// <summary>
+        /// Retrieves user timesheet records for a specific month and facility.
+        /// </summary>
+        public async Task<List<AttendanceLog>> GetUserTimesheetAsync(
+            Guid userId,
+            int year,
+            int month
+        )
+        {
+            return await _context
+                .AttendanceLogs.Where(a =>
+                    a.UserId == userId
+                    && a.CheckInDate.HasValue
+                    && a.CheckInDate.Value.Year == year
+                    && a.CheckInDate.Value.Month == month
+                )
+                .OrderBy(a => a.CheckInDate)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Retrieves facility-wide attendance logs for a given month.
+        /// </summary>
+        public async Task<List<AttendanceLog>> GetFacilityMonthlyReportAsync(
+            string facility,
+            int year,
+            int month
+        )
+        {
+            return await _context
+                .AttendanceLogs.Where(a =>
+                    a.Facility == facility
+                    && a.CheckInDate.HasValue
+                    && a.CheckInDate.Value.Year == year
+                    && a.CheckInDate.Value.Month == month
+                )
+                .OrderBy(a => a.FullName)
+                .ThenBy(a => a.CheckInDate)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Generates a PDF timesheet for a specific user and month.
+        /// </summary>
+        public async Task<byte[]> GenerateUserTimesheetPdfAsync(Guid userId, int year, int month)
+        {
+            var records = await GetUserTimesheetAsync(userId, year, month);
+            if (!records.Any())
+                throw new Exception(
+                    "No attendance records found for the specified user and month."
+                );
+
+            var user = records.First();
+            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
+
+            var pdf = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(40);
+                    page.Header()
+                        .Text($"Attendance Timesheet - {user.FullName}")
+                        .FontSize(18)
+                        .Bold();
+
+                    page.Content()
+                        .Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(2); // Date
+                                columns.RelativeColumn(2); // Check In
+                                columns.RelativeColumn(2); // Check Out
+                                columns.RelativeColumn(3); // Message
+                                columns.RelativeColumn(1); // Success
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Text("Date").Bold();
+                                header.Cell().Text("Check In").Bold();
+                                header.Cell().Text("Check Out").Bold();
+                                header.Cell().Text("Message").Bold();
+                                header.Cell().Text("Status").Bold();
+                            });
+
+                            foreach (var log in records)
+                            {
+                                table.Cell().Text(log.CheckInDate?.ToString("yyyy-MM-dd") ?? "-");
+                                table
+                                    .Cell()
+                                    .Text(log.CheckIn?.ToLocalTime().ToString("HH:mm") ?? "-");
+                                table
+                                    .Cell()
+                                    .Text(log.CheckOut?.ToLocalTime().ToString("HH:mm") ?? "-");
+                                table.Cell().Text(log.Message ?? "");
+                                table.Cell().Text(log.Success ? "✔️" : "❌");
+                            }
+                        });
+
+                    page.Footer()
+                        .AlignRight()
+                        .Text($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                });
+            });
+
+            using var stream = new MemoryStream();
+            pdf.GeneratePdf(stream);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Returns analytics summary data for charts (e.g. per facility or success/failure rate).
+        /// </summary>
+        public async Task<object> GetChartAnalyticsAsync(int year, int month)
+        {
+            var result = await _context
+                .AttendanceLogs.Where(a =>
+                    a.CheckInDate.HasValue
+                    && a.CheckInDate.Value.Year == year
+                    && a.CheckInDate.Value.Month == month
+                )
+                .GroupBy(a => a.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    Total = g.Count(),
+                    Success = g.Count(x => x.Success),
+                    Failed = g.Count(x => !x.Success),
+                    LastCheckIn = g.Max(x => x.CheckInDate),
+                })
+                .ToListAsync();
+
+            return result;
         }
     }
 }

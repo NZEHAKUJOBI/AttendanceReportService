@@ -38,5 +38,33 @@ namespace AttendanceReportService.Controllers
             var result = await _reportService.GetFacilitySummaryAsync();
             return Ok(result);
         }
+
+        [HttpGet("timesheet/{userId:guid}/{year:int}/{month:int}")]
+        public async Task<IActionResult> GetUserTimesheet(Guid userId, int year, int month)
+        {
+            var data = await _reportService.GetUserTimesheetAsync(userId, year, month);
+            return Ok(data);
+        }
+
+        [HttpGet("facility/{facility}/{year:int}/{month:int}")]
+        public async Task<IActionResult> GetFacilityReport(string facility, int year, int month)
+        {
+            var data = await _reportService.GetFacilityMonthlyReportAsync(facility, year, month);
+            return Ok(data);
+        }
+
+        [HttpGet("timesheet-pdf/{userId:guid}/{year:int}/{month:int}")]
+        public async Task<IActionResult> GeneratePdf(Guid userId, int year, int month)
+        {
+            var pdfBytes = await _reportService.GenerateUserTimesheetPdfAsync(userId, year, month);
+            return File(pdfBytes, "application/pdf", $"Timesheet_{userId}_{year}_{month}.pdf");
+        }
+
+        [HttpGet("analytics/{year:int}/{month:int}")]
+        public async Task<IActionResult> GetChartAnalytics(int year, int month)
+        {
+            var analytics = await _reportService.GetChartAnalyticsAsync(year, month);
+            return Ok(analytics);
+        }
     }
 }
