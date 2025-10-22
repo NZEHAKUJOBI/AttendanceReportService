@@ -38,6 +38,8 @@ namespace AttendanceReportService.Services
 
                     UserId = r.UserId,
                     FullName = r.FullName?.Trim(),
+                    State = r.State?.Trim(),
+                    Lga = r.Lga?.Trim(),
                     Designation = r.Designation,
                     Facility = r.Facility,
                     PhoneNumber = r.PhoneNumber,

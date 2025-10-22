@@ -6,6 +6,8 @@ namespace AttendanceReportService.Dto
         public Guid UserId { get; set; }
         public string FullName { get; set; }
         public string Designation { get; set; }
+        public string State { get; set; }
+        public string Lga { get; set; }
         public string Facility { get; set; }
         public string PhoneNumber { get; set; }
         public DateTime? CheckInDate { get; set; }

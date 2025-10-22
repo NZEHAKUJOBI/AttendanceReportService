@@ -32,6 +32,9 @@ namespace AttendanceReportService.Controllers
                         Facility = dto.Facility,
                         IpAddress = dto.IpAddress,
                         IsOnline = dto.IsOnline,
+                        FacilityCode = dto.FacilityCode,
+                        FacilityState = dto.FacilityState,
+                        FacilityLga = dto.FacilityLga,
                     }
                 );
 
@@ -59,6 +62,9 @@ namespace AttendanceReportService.Controllers
                 x.DeviceName,
                 x.IpAddress,
                 x.IsOnline,
+                x.FacilityCode,
+                x.FacilityState,
+                x.FacilityLga,
                 LastSeen = x.LastChecked.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
             });
 

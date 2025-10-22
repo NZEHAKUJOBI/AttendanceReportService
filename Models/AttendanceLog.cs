@@ -15,6 +15,12 @@ namespace AttendanceReportService.Models
         [Column("full_name")]
         public string FullName { get; set; }
 
+        [Column("state")]
+        public string State { get; set; }
+
+        [Column("lga")]
+        public string Lga { get; set; }
+
         [Column("designation")]
         public string Designation { get; set; }
 
