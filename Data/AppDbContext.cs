@@ -11,6 +11,7 @@ namespace AttendanceReportService.Data
         public DbSet<AttendanceLog> AttendanceLogs { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<DeviceHealth> DeviceHealths { get; set; }
+        public DbSet<Staff> Staff { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -49,6 +49,7 @@ builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<DeviceHealthService>();
 builder.Services.AddScoped<HealthMonitorService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddSwaggerGen(options =>
 {
     options.EnableAnnotations(); // ✅ Enables SwaggerOperation, SwaggerResponse, etc.
