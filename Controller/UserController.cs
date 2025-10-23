@@ -19,7 +19,6 @@ namespace AttendanceReportService.Controllers
         }
 
         [HttpPost("sync")]
-        [HttpPost("sync")]
         public async Task<IActionResult> SyncUsers([FromBody] List<UserDTO> users)
         {
             var (success, message) = await _userService.SaveUsersAsync(users);
