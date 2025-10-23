@@ -26,7 +26,7 @@ namespace AttendanceReportService.Services
             var entities = users
                 .Select(u => new Staff
                 {
-                    UserId = u.UserId, // Map UserDTO.Id to Staff.UserId
+                    UserId = u.Id, // Map UserDTO.Id to Staff.UserId
                     FullName = u.FullName?.Trim(),
                     Designation = u.Designation,
                     Facility = u.Facility,

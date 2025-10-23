@@ -4,7 +4,7 @@ namespace AttendanceReportService.Dto
 {
     public class UserDTO
     {
-        public Guid UserId { get; set; }
+        public Guid Id { get; set; }
         public string FullName { get; set; }
         public string Designation { get; set; }
         public string Facility { get; set; }
