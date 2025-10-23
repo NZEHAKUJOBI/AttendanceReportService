@@ -26,7 +26,7 @@ namespace AttendanceReportService.Services
             var entities = users
                 .Select(u => new Staff
                 {
-                    UserId = u.Id, // Map UserDTO.Id to Staff.UserId
+                    Id = u.Id, // Map UserDTO.Id to Staff.UserId
                     FullName = u.FullName?.Trim(),
                     Designation = u.Designation,
                     Facility = u.Facility,
@@ -39,9 +39,7 @@ namespace AttendanceReportService.Services
 
             foreach (var user in entities)
             {
-                var existingUser = await _context.Staff.FirstOrDefaultAsync(s =>
-                    s.UserId == user.UserId
-                );
+                var existingUser = await _context.Staff.FirstOrDefaultAsync(s => s.Id == user.Id);
 
                 if (existingUser == null)
                 {
