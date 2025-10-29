@@ -216,8 +216,10 @@ namespace AttendanceReportService.Services
         /// </summary>
         public async Task<object> GetChartAnalyticsAsync(int year, int month)
         {
-            var result = await _context
-                .AttendanceLogs.Where(a =>
+            // Get attendance data for the specified month
+            var attendanceData = await _context
+                .AttendanceLogs
+                .Where(a =>
                     a.CheckInDate.HasValue
                     && a.CheckInDate.Value.Year == year
                     && a.CheckInDate.Value.Month == month
@@ -226,12 +228,36 @@ namespace AttendanceReportService.Services
                 .Select(g => new
                 {
                     Facility = g.Key,
-                    Total = g.Count(),
-                    Success = g.Count(x => x.Success),
-                    Failed = g.Count(x => !x.Success),
-                    LastCheckIn = g.Max(x => x.CheckInDate),
+                    SuccessCount = g.Count(x => x.Success),
+                    LastCheckIn = g.Max(x => x.CheckInDate)
                 })
                 .ToListAsync();
+
+            // Get total users per facility from User table
+            var facilityUserCounts = await _context
+                .Staff
+                .GroupBy(u => u.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    TotalUsers = g.Count()
+                })
+                .ToListAsync();
+
+            // Combine the data
+            var result = facilityUserCounts
+                .Select(f => new
+                {
+                    Facility = f.Facility,
+                    Total = f.TotalUsers,
+                    Success = attendanceData
+                        .FirstOrDefault(a => a.Facility == f.Facility)?.SuccessCount ?? 0,
+                    Failed = f.TotalUsers - (attendanceData
+                        .FirstOrDefault(a => a.Facility == f.Facility)?.SuccessCount ?? 0),
+                    LastCheckIn = attendanceData
+                        .FirstOrDefault(a => a.Facility == f.Facility)?.LastCheckIn
+                })
+                .ToList();
 
             return result;
         }
