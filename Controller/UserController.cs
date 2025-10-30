@@ -89,5 +89,74 @@ namespace AttendanceReportService.Controllers
             var summary = await _userService.GetFacilitySummaryAsync();
             return Ok(summary);
         }
+
+        /// <summary>
+        /// Gets designation analysis grouped by state and designation.
+        /// </summary>
+        [HttpGet("analysis/designation-by-state")]
+        [SwaggerOperation(Summary = "Get designation analysis by state", Description = "Retrieves designation analysis grouped by state and designation")]
+        public async Task<IActionResult> GetDesignationAnalysisByState()
+        {
+            var analysis = await _userService.GetDesignationAnalysisByStateAsync();
+            return Ok(analysis);
+        }
+
+        /// <summary>
+        /// Gets designation analysis grouped by state only.
+        /// </summary>
+        [HttpGet("analysis/state-breakdown")]
+        [SwaggerOperation(Summary = "Get state breakdown analysis", Description = "Retrieves designation analysis grouped by state only")]
+        public async Task<IActionResult> GetDesignationAnalysisByStateOnly()
+        {
+            var analysis = await _userService.GetDesignationAnalysisByStateOnlyAsync();
+            return Ok(analysis);
+        }
+
+        /// <summary>
+        /// Gets designation analysis grouped by designation only.
+        /// </summary>
+        [HttpGet("analysis/designation-breakdown")]
+        [SwaggerOperation(Summary = "Get designation breakdown analysis", Description = "Retrieves designation analysis grouped by designation only")]
+        public async Task<IActionResult> GetDesignationAnalysisByDesignationOnly()
+        {
+            var analysis = await _userService.GetDesignationAnalysisByDesignationOnlyAsync();
+            return Ok(analysis);
+        }
+
+        /// <summary>
+        /// Gets staff contact information with optional filters.
+        /// </summary>
+        [HttpGet("contacts")]
+        [SwaggerOperation(Summary = "Get staff contacts", Description = "Retrieves staff contact information with optional state, designation, and facility filters")]
+        public async Task<IActionResult> GetStaffContacts(
+            [FromQuery] string? state = null,
+            [FromQuery] string? designation = null,
+            [FromQuery] string? facility = null)
+        {
+            var contacts = await _userService.GetStaffContactsAsync(state, designation, facility);
+            return Ok(contacts);
+        }
+
+        /// <summary>
+        /// Gets staff contacts by designation for a specific state.
+        /// </summary>
+        [HttpGet("contacts/state/{state}")]
+        [SwaggerOperation(Summary = "Get staff contacts by state", Description = "Retrieves staff contacts grouped by designation for a specific state")]
+        public async Task<IActionResult> GetStaffContactsByDesignationForState(string state)
+        {
+            var contacts = await _userService.GetStaffContactsByDesignationForStateAsync(state);
+            return Ok(contacts);
+        }
+
+        /// <summary>
+        /// Gets comprehensive staff analysis with contact information.
+        /// </summary>
+        [HttpGet("analysis/comprehensive")]
+        [SwaggerOperation(Summary = "Get comprehensive staff analysis", Description = "Retrieves comprehensive staff analysis including contact coverage and breakdowns")]
+        public async Task<IActionResult> GetComprehensiveStaffAnalysis()
+        {
+            var analysis = await _userService.GetComprehensiveStaffAnalysisAsync();
+            return Ok(analysis);
+        }
     }
 }
