@@ -1,8 +1,10 @@
+using AttendanceReportService.Data;
 using AttendanceReportService.Dto;
 using AttendanceReportService.Models;
 using AttendanceReportService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
@@ -14,10 +16,12 @@ namespace AttendanceReportService.Controllers
     public class ReportsController : ControllerBase
     {
         private readonly ReportService _reportService;
+        private readonly AppDbContext _context;
 
-        public ReportsController(ReportService reportService)
+        public ReportsController(ReportService reportService, AppDbContext context)
         {
             _reportService = reportService;
+            _context = context;
         }
 
         [HttpPost("receive")]
@@ -58,8 +62,78 @@ namespace AttendanceReportService.Controllers
         [HttpGet("timesheet-pdf/{userId:guid}/{year:int}/{month:int}")]
         public async Task<IActionResult> GeneratePdf(Guid userId, int year, int month)
         {
-            var pdfBytes = await _reportService.GenerateUserTimesheetPdfAsync(userId, year, month);
-            return File(pdfBytes, "application/pdf", $"Timesheet_{userId}_{year}_{month}.pdf");
+            try
+            {
+                var pdfBytes = await _reportService.GenerateUserTimesheetPdfAsync(userId, year, month);
+                var fileName = $"Timesheet_{userId}_{year}_{month:D2}.pdf";
+                return File(pdfBytes, "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Debug endpoint to check user timesheet data before PDF generation.
+        /// </summary>
+        [HttpGet("debug/timesheet/{userId:guid}/{year:int}/{month:int}")]
+        [SwaggerOperation(Summary = "Debug user timesheet data", Description = "Returns raw timesheet data for debugging PDF generation issues")]
+        public async Task<IActionResult> DebugUserTimesheet(Guid userId, int year, int month)
+        {
+            try
+            {
+                // Get attendance records
+                var records = await _reportService.GetUserTimesheetAsync(userId, year, month);
+
+                // Get user info from Staff table  
+                var userInfo = await _context.Staff
+                    .Where(s => s.Id == userId)
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.FullName,
+                        s.Designation,
+                        s.Facility,
+                        s.State,
+                        s.Lga,
+                        s.PhoneNumber
+                    })
+                    .FirstOrDefaultAsync();
+
+                return Ok(new
+                {
+                    UserInfo = userInfo,
+                    AttendanceRecords = records.Select(r => new
+                    {
+                        r.Id,
+                        r.UserId,
+                        r.FullName,
+                        r.CheckInDate,
+                        r.CheckIn,
+                        r.CheckOut,
+                        r.Message,
+                        r.Success,
+                        r.Facility,
+                        r.Designation
+                    }).ToList(),
+                    Summary = new
+                    {
+                        TotalRecords = records.Count,
+                        SuccessfulDays = records.Count(r => r.Success),
+                        FailedDays = records.Count(r => !r.Success),
+                        DateRange = records.Any() ? new
+                        {
+                            From = records.Min(r => r.CheckInDate),
+                            To = records.Max(r => r.CheckInDate)
+                        } : null
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
         }
 
         [HttpGet("analytics/{year:int}/{month:int}")]

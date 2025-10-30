@@ -175,69 +175,195 @@ namespace AttendanceReportService.Services
         /// </summary>
         public async Task<byte[]> GenerateUserTimesheetPdfAsync(Guid userId, int year, int month)
         {
-            var records = await GetUserTimesheetAsync(userId, year, month);
-            if (!records.Any())
-                throw new Exception(
-                    "No attendance records found for the specified user and month."
-                );
-
-            var user = records.First();
-            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
-
-            var pdf = Document.Create(container =>
+            try
             {
-                container.Page(page =>
-                {
-                    page.Margin(40);
-                    page.Header()
-                        .Text($"Attendance Timesheet - {user.FullName}")
-                        .FontSize(18)
-                        .Bold();
+                var records = await GetUserTimesheetAsync(userId, year, month);
 
-                    page.Content()
-                        .Table(table =>
+                // Get user information from Staff table if no attendance records exist
+                var userInfo = records.Any()
+                    ? records.First()
+                    : await _context.Staff
+                        .Where(s => s.Id == userId)
+                        .Select(s => new AttendanceLog
                         {
-                            table.ColumnsDefinition(columns =>
+                            UserId = s.Id,
+                            FullName = s.FullName,
+                            Designation = s.Designation,
+                            Facility = s.Facility,
+                            State = s.State,
+                            Lga = s.Lga,
+                            PhoneNumber = s.PhoneNumber
+                        })
+                        .FirstOrDefaultAsync();
+
+                if (userInfo == null)
+                    throw new Exception($"No user found with ID: {userId}");
+
+                var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
+
+                var pdf = Document.Create(container =>
+                {
+                    container.Page(page =>
+                    {
+                        page.Margin(40);
+
+                        // Header section
+                        page.Header()
+                            .Column(column =>
                             {
-                                columns.RelativeColumn(2); // Date
-                                columns.RelativeColumn(2); // Check In
-                                columns.RelativeColumn(2); // Check Out
-                                columns.RelativeColumn(3); // Message
-                                columns.RelativeColumn(1); // Success
+                                column.Item().Text($"Attendance Timesheet")
+                                    .FontSize(20)
+                                    .Bold()
+                                    .AlignCenter();
+
+                                column.Item().Text($"{userInfo.FullName}")
+                                    .FontSize(16)
+                                    .Bold()
+                                    .AlignCenter();
+
+                                column.Item().Text($"{monthName} {year}")
+                                    .FontSize(14)
+                                    .AlignCenter();
+
+                                column.Item().PaddingTop(10)
+                                    .Table(infoTable =>
+                                    {
+                                        infoTable.ColumnsDefinition(cols =>
+                                        {
+                                            cols.RelativeColumn();
+                                            cols.RelativeColumn();
+                                        });
+
+                                        infoTable.Cell().Text("Facility:").Bold();
+                                        infoTable.Cell().Text(userInfo.Facility ?? "N/A");
+
+                                        infoTable.Cell().Text("Designation:").Bold();
+                                        infoTable.Cell().Text(userInfo.Designation ?? "N/A");
+
+                                        infoTable.Cell().Text("State:").Bold();
+                                        infoTable.Cell().Text(userInfo.State ?? "N/A");
+
+                                        infoTable.Cell().Text("LGA:").Bold();
+                                        infoTable.Cell().Text(userInfo.Lga ?? "N/A");
+
+                                        infoTable.Cell().Text("Total Records:").Bold();
+                                        infoTable.Cell().Text(records.Count.ToString());
+
+                                        infoTable.Cell().Text("Successful Days:").Bold();
+                                        infoTable.Cell().Text(records.Count(r => r.Success).ToString());
+                                    });
                             });
 
-                            table.Header(header =>
+                        // Content section
+                        page.Content()
+                            .PaddingTop(20)
+                            .Column(column =>
                             {
-                                header.Cell().Text("Date").Bold();
-                                header.Cell().Text("Check In").Bold();
-                                header.Cell().Text("Check Out").Bold();
-                                header.Cell().Text("Message").Bold();
-                                header.Cell().Text("Status").Bold();
+                                if (!records.Any())
+                                {
+                                    column.Item()
+                                        .PaddingTop(50)
+                                        .Text("No attendance records found for this period.")
+                                        .FontSize(16)
+                                        .AlignCenter()
+                                        .Italic();
+                                }
+                                else
+                                {
+                                    column.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn(2); // Date
+                                            columns.RelativeColumn(2); // Check In
+                                            columns.RelativeColumn(2); // Check Out
+                                            columns.RelativeColumn(3); // Message
+                                            columns.RelativeColumn(1); // Success
+                                        });
+
+                                        // Table header
+                                        table.Header(header =>
+                                        {
+                                            header.Cell()
+                                                .Background(Colors.Grey.Lighten3)
+                                                .Padding(8)
+                                                .Text("Date")
+                                                .Bold();
+
+                                            header.Cell()
+                                                .Background(Colors.Grey.Lighten3)
+                                                .Padding(8)
+                                                .Text("Check In")
+                                                .Bold();
+
+                                            header.Cell()
+                                                .Background(Colors.Grey.Lighten3)
+                                                .Padding(8)
+                                                .Text("Check Out")
+                                                .Bold();
+
+                                            header.Cell()
+                                                .Background(Colors.Grey.Lighten3)
+                                                .Padding(8)
+                                                .Text("Message")
+                                                .Bold();
+
+                                            header.Cell()
+                                                .Background(Colors.Grey.Lighten3)
+                                                .Padding(8)
+                                                .Text("Status")
+                                                .Bold();
+                                        });
+
+                                        // Table rows
+                                        foreach (var log in records.OrderBy(r => r.CheckInDate))
+                                        {
+                                            table.Cell()
+                                                .Border(1)
+                                                .Padding(5)
+                                                .Text(log.CheckInDate?.ToString("yyyy-MM-dd") ?? "-");
+
+                                            table.Cell()
+                                                .Border(1)
+                                                .Padding(5)
+                                                .Text(log.CheckIn?.ToLocalTime().ToString("HH:mm") ?? "-");
+
+                                            table.Cell()
+                                                .Border(1)
+                                                .Padding(5)
+                                                .Text(log.CheckOut?.ToLocalTime().ToString("HH:mm") ?? "-");
+
+                                            table.Cell()
+                                                .Border(1)
+                                                .Padding(5)
+                                                .Text(log.Message ?? "");
+
+                                            table.Cell()
+                                                .Border(1)
+                                                .Padding(5)
+                                                .Text(log.Success ? "✔️" : "❌")
+                                                .AlignCenter();
+                                        }
+                                    });
+                                }
                             });
 
-                            foreach (var log in records)
-                            {
-                                table.Cell().Text(log.CheckInDate?.ToString("yyyy-MM-dd") ?? "-");
-                                table
-                                    .Cell()
-                                    .Text(log.CheckIn?.ToLocalTime().ToString("HH:mm") ?? "-");
-                                table
-                                    .Cell()
-                                    .Text(log.CheckOut?.ToLocalTime().ToString("HH:mm") ?? "-");
-                                table.Cell().Text(log.Message ?? "");
-                                table.Cell().Text(log.Success ? "✔️" : "❌");
-                            }
-                        });
-
-                    page.Footer()
-                        .AlignRight()
-                        .Text($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        // Footer section
+                        page.Footer()
+                            .AlignRight()
+                            .Text($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC")
+                            .FontSize(10);
+                    });
                 });
-            });
 
-            using var stream = new MemoryStream();
-            pdf.GeneratePdf(stream);
-            return stream.ToArray();
+                using var stream = new MemoryStream();
+                pdf.GeneratePdf(stream);
+                return stream.ToArray();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error generating user timesheet PDF: {ex.Message}", ex);
+            }
         }
 
         /// <summary>
