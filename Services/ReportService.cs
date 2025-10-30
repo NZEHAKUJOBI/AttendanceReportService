@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography.X509Certificates;
 using AttendanceReportService.Data;
 using AttendanceReportService.Dto;
 using AttendanceReportService.Models;
@@ -122,6 +123,72 @@ namespace AttendanceReportService.Services
                         LastCheckIn = attendance?.LastCheckIn
                     };
                 })
+                .ToList();
+
+            return result.Cast<object>().ToList();
+        }
+
+        /// <summary>
+        /// Returns facility-level attendance summary for today.
+        /// </summary>
+        public async Task<List<object>> GetFacilityTodaySummaryAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+            var tomorrow = today.AddDays(1);
+
+            // Get total users per facility from Staff table
+            var totalUsersPerFacility = await _context
+                .Staff
+                .GroupBy(u => u.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    TotalUsers = g.Count()
+                })
+                .ToListAsync();
+
+            // Get attendance data for today only, grouped by facility
+            var attendanceData = await _context
+                .AttendanceLogs
+                .Where(a => a.CheckInDate.HasValue
+                    && a.CheckInDate.Value >= today
+                    && a.CheckInDate.Value < tomorrow)
+                .GroupBy(a => a.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    AttendanceTotal = g.Count(),
+                    SuccessCount = g.Count(x => x.Success),
+                    FailedCount = g.Count(x => !x.Success),
+                    LastCheckIn = g.Max(x => x.CheckInDate),
+                    FirstCheckIn = g.Min(x => x.CheckInDate),
+                    UniqueUsersCheckedIn = g.Select(x => x.UserId).Distinct().Count()
+                })
+                .ToListAsync();
+
+            // Combine the data: Total from Staff table, today's attendance stats from AttendanceLogs
+            var result = totalUsersPerFacility
+                .Select(f =>
+                {
+                    var attendance = attendanceData.FirstOrDefault(a => a.Facility == f.Facility);
+                    return new
+                    {
+                        Facility = f.Facility,
+                        Date = today.ToString("yyyy-MM-dd"),
+                        Total = f.TotalUsers, // Total users in facility from Staff table
+                        CheckedIn = attendance?.UniqueUsersCheckedIn ?? 0, // Unique users who checked in today
+                        Success = attendance?.SuccessCount ?? 0, // Successful check-ins today
+                        Failed = attendance?.FailedCount ?? 0, // Failed check-ins today
+                        NotCheckedIn = f.TotalUsers - (attendance?.UniqueUsersCheckedIn ?? 0), // Users who haven't checked in
+                        AttendanceRate = f.TotalUsers > 0
+                            ? Math.Round(((double)(attendance?.UniqueUsersCheckedIn ?? 0) / f.TotalUsers) * 100, 2)
+                            : 0.0, // Attendance percentage
+                        FirstCheckIn = attendance?.FirstCheckIn,
+                        LastCheckIn = attendance?.LastCheckIn,
+                        TotalCheckIns = attendance?.AttendanceTotal ?? 0 // Total check-in attempts (including multiple per user)
+                    };
+                })
+                .OrderByDescending(x => x.AttendanceRate)
                 .ToList();
 
             return result.Cast<object>().ToList();

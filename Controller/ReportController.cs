@@ -45,6 +45,24 @@ namespace AttendanceReportService.Controllers
             return Ok(result);
         }
 
+        /// <summary>
+        /// Gets detailed facility-level attendance summary for today.
+        /// </summary>
+        [HttpGet("facility-today-summary")]
+        [SwaggerOperation(Summary = "Get today's facility summary", Description = "Returns detailed today's attendance summary for all facilities with attendance rates")]
+        public async Task<IActionResult> GetFacilityTodaySummary()
+        {
+            try
+            {
+                var result = await _reportService.GetFacilityTodaySummaryAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
+
         [HttpGet("timesheet/{userId:guid}/{year:int}/{month:int}")]
         public async Task<IActionResult> GetUserTimesheet(Guid userId, int year, int month)
         {
@@ -228,5 +246,9 @@ namespace AttendanceReportService.Controllers
                 return BadRequest(new { status = "error", message = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Ge
+
     }
 }
