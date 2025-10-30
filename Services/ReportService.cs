@@ -81,19 +81,51 @@ namespace AttendanceReportService.Services
         /// <summary>
         /// Returns facility-level attendance summary.
         /// </summary>
+        /// <summary>
+        /// Returns facility-level attendance summary.
+        /// </summary>
         public async Task<List<object>> GetFacilitySummaryAsync()
         {
-            var result = await _context
-                .AttendanceLogs.GroupBy(a => a.Facility)
+            // Get total users per facility from Staff table
+            var totalUsersPerFacility = await _context
+                .Staff
+                .GroupBy(u => u.Facility)
                 .Select(g => new
                 {
                     Facility = g.Key,
-                    Total = g.Count(),
-                    Success = g.Count(x => x.Success),
-                    Failed = g.Count(x => !x.Success),
-                    LastCheckIn = g.Max(x => x.CheckInDate),
+                    TotalUsers = g.Count()
                 })
                 .ToListAsync();
+
+            // Get attendance data grouped by facility
+            var attendanceData = await _context
+                .AttendanceLogs
+                .GroupBy(a => a.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    AttendanceTotal = g.Count(),
+                    SuccessCount = g.Count(x => x.Success),
+                    FailedCount = g.Count(x => !x.Success),
+                    LastCheckIn = g.Max(x => x.CheckInDate)
+                })
+                .ToListAsync();
+
+            // Combine the data: Total from Staff table, attendance stats from AttendanceLogs
+            var result = totalUsersPerFacility
+                .Select(f =>
+                {
+                    var attendance = attendanceData.FirstOrDefault(a => a.Facility == f.Facility);
+                    return new
+                    {
+                        Facility = f.Facility,
+                        Total = f.TotalUsers, // Total users in facility from Staff table
+                        Success = attendance?.SuccessCount ?? 0,
+                        Failed = f.TotalUsers - (attendance?.SuccessCount ?? 0), // Total users - successful attendances
+                        LastCheckIn = attendance?.LastCheckIn
+                    };
+                })
+                .ToList();
 
             return result.Cast<object>().ToList();
         }
