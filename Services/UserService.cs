@@ -61,5 +61,113 @@ namespace AttendanceReportService.Services
 
             return (true, $"{entities.Count} users saved/updated successfully.");
         }
+
+
+        public async Task<List<UserDTO>> GetAllUsersAsync()
+        {
+            var users = await _context.Staff.ToListAsync();
+
+            return users.Select(u => new UserDTO
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Designation = u.Designation,
+                Facility = u.Facility,
+                Phone_number = u.PhoneNumber,
+                State = u.State,
+                Lga = u.Lga,
+                // IsSynced = u.IsSynced // If you have this property
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Gets all users for a specific facility.
+        /// </summary>
+        /// <param name="facility">The facility name</param>
+        /// <returns>List of users in the specified facility</returns>
+        public async Task<List<UserDTO>> GetUsersByFacilityAsync(string facility)
+        {
+            var users = await _context.Staff
+                .Where(s => s.Facility == facility)
+                .ToListAsync();
+
+            return users.Select(u => new UserDTO
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Designation = u.Designation,
+                Facility = u.Facility,
+                Phone_number = u.PhoneNumber,
+                State = u.State,
+                Lga = u.Lga,
+                // IsSynced = u.IsSynced // If you have this property
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Gets a specific user by ID.
+        /// </summary>
+        /// <param name="userId">The user ID</param>
+        /// <returns>User information or null if not found</returns>
+        public async Task<UserDTO?> GetUserByIdAsync(Guid userId)
+        {
+            var user = await _context.Staff
+                .FirstOrDefaultAsync(s => s.Id == userId);
+
+            if (user == null)
+                return null;
+
+            return new UserDTO
+            {
+                Id = user.Id,
+                FullName = user.FullName,
+                Designation = user.Designation,
+                Facility = user.Facility,
+                Phone_number = user.PhoneNumber,
+                State = user.State,
+                Lga = user.Lga,
+                // IsSynced = user.IsSynced // If you have this property
+            };
+        }
+
+        /// <summary>
+        /// Gets all unique facilities from the staff table.
+        /// </summary>
+        /// <returns>List of facility names</returns>
+        public async Task<List<string>> GetAllFacilitiesAsync()
+        {
+            return await _context.Staff
+                .Where(s => !string.IsNullOrEmpty(s.Facility))
+                .Select(s => s.Facility)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Gets facility summary with user counts.
+        /// </summary>
+        /// <returns>List of facilities with user counts</returns>
+        public async Task<List<object>> GetFacilitySummaryAsync()
+        {
+            var facilitySummary = await _context.Staff
+                .Where(s => !string.IsNullOrEmpty(s.Facility))
+                .GroupBy(s => s.Facility)
+                .Select(g => new
+                {
+                    Facility = g.Key,
+                    UserCount = g.Count(),
+                    Users = g.Select(u => new
+                    {
+                        u.Id,
+                        u.FullName,
+                        u.Designation
+                    }).ToList()
+                })
+                .OrderBy(f => f.Facility)
+                .ToListAsync();
+
+            return facilitySummary.Cast<object>().ToList();
+        }
     }
 }

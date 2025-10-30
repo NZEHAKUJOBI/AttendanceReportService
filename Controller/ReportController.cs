@@ -66,5 +66,42 @@ namespace AttendanceReportService.Controllers
             var analytics = await _reportService.GetChartAnalyticsAsync(year, month);
             return Ok(analytics);
         }
+
+        /// <summary>
+        /// Generates a facility-wide timesheet PDF for all users in a facility for a specific month.
+        /// </summary>
+        [HttpGet("facility-timesheet-pdf/{facility}/{year:int}/{month:int}")]
+        [SwaggerOperation(Summary = "Generate facility timesheet PDF", Description = "Creates a PDF timesheet for all users in a facility for the specified month")]
+        public async Task<IActionResult> GenerateFacilityTimesheetPdf(string facility, int year, int month)
+        {
+            try
+            {
+                var pdfBytes = await _reportService.GenerateFacilityTimesheetPdfAsync(facility, year, month);
+                var fileName = $"Facility_Timesheet_{facility}_{year}_{month:D2}.pdf";
+                return File(pdfBytes, "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gets facility timesheet data for all users in a facility for a specific month.
+        /// </summary>
+        [HttpGet("facility-timesheet-data/{facility}/{year:int}/{month:int}")]
+        [SwaggerOperation(Summary = "Get facility timesheet data", Description = "Retrieves timesheet data for all users in a facility for the specified month")]
+        public async Task<IActionResult> GetFacilityTimesheetData(string facility, int year, int month)
+        {
+            try
+            {
+                var data = await _reportService.GetFacilityTimesheetDataAsync(facility, year, month);
+                return Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
     }
 }

@@ -81,9 +81,6 @@ namespace AttendanceReportService.Services
         /// <summary>
         /// Returns facility-level attendance summary.
         /// </summary>
-        /// <summary>
-        /// Returns facility-level attendance summary.
-        /// </summary>
         public async Task<List<object>> GetFacilitySummaryAsync()
         {
             // Get total users per facility from Staff table
@@ -292,6 +289,209 @@ namespace AttendanceReportService.Services
                 .ToList();
 
             return result;
+        }
+
+        /// <summary>
+        /// Generates a facility-wide timesheet PDF for a specific month.
+        /// </summary>
+        /// <param name="facility">The facility name</param>
+        /// <param name="year">The year</param>
+        /// <param name="month">The month</param>
+        /// <returns>PDF byte array</returns>
+        public async Task<byte[]> GenerateFacilityTimesheetPdfAsync(string facility, int year, int month)
+        {
+            // Get all users in the facility
+            var facilityUsers = await _context.Staff
+                .Where(s => s.Facility == facility)
+                .OrderBy(s => s.FullName)
+                .ToListAsync();
+
+            if (!facilityUsers.Any())
+                throw new Exception($"No users found for facility: {facility}");
+
+            // Get attendance records for all users in the facility for the specified month
+            var userIds = facilityUsers.Select(u => u.Id).ToList();
+            var attendanceRecords = await _context.AttendanceLogs
+                .Where(a => userIds.Contains(a.UserId)
+                    && a.CheckInDate.HasValue
+                    && a.CheckInDate.Value.Year == year
+                    && a.CheckInDate.Value.Month == month)
+                .OrderBy(a => a.FullName)
+                .ThenBy(a => a.CheckInDate)
+                .ToListAsync();
+
+            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
+
+            var pdf = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(40);
+                    page.Header()
+                        .Column(column =>
+                        {
+                            column.Item().Text($"Facility Attendance Report - {facility}")
+                                .FontSize(18)
+                                .Bold();
+                            column.Item().Text($"{monthName} {year}")
+                                .FontSize(14);
+                            column.Item().Text($"Total Users: {facilityUsers.Count} | " +
+                                $"Users with Records: {attendanceRecords.Select(a => a.UserId).Distinct().Count()}")
+                                .FontSize(12);
+                        });
+
+                    page.Content()
+                        .Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(3); // User Name
+                                columns.RelativeColumn(2); // Designation  
+                                columns.RelativeColumn(2); // Date
+                                columns.RelativeColumn(2); // Check In
+                                columns.RelativeColumn(2); // Check Out
+                                columns.RelativeColumn(3); // Message
+                                columns.RelativeColumn(1); // Status
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Text("User Name").Bold();
+                                header.Cell().Text("Designation").Bold();
+                                header.Cell().Text("Date").Bold();
+                                header.Cell().Text("Check In").Bold();
+                                header.Cell().Text("Check Out").Bold();
+                                header.Cell().Text("Message").Bold();
+                                header.Cell().Text("Status").Bold();
+                            });
+
+                            // Group attendance records by user
+                            var groupedRecords = attendanceRecords.GroupBy(a => a.UserId).ToList();
+
+                            foreach (var user in facilityUsers)
+                            {
+                                var userRecords = groupedRecords.FirstOrDefault(g => g.Key == user.Id);
+
+                                if (userRecords == null || !userRecords.Any())
+                                {
+                                    // User with no attendance records
+                                    table.Cell().Text(user.FullName ?? "");
+                                    table.Cell().Text(user.Designation ?? "");
+                                    table.Cell().Text("-");
+                                    table.Cell().Text("-");
+                                    table.Cell().Text("-");
+                                    table.Cell().Text("No attendance records");
+                                    table.Cell().Text("❌");
+                                }
+                                else
+                                {
+                                    // User with attendance records
+                                    bool firstRecord = true;
+                                    foreach (var record in userRecords.OrderBy(r => r.CheckInDate))
+                                    {
+                                        table.Cell().Text(firstRecord ? (user.FullName ?? "") : "");
+                                        table.Cell().Text(firstRecord ? (user.Designation ?? "") : "");
+                                        table.Cell().Text(record.CheckInDate?.ToString("yyyy-MM-dd") ?? "-");
+                                        table.Cell().Text(record.CheckIn?.ToLocalTime().ToString("HH:mm") ?? "-");
+                                        table.Cell().Text(record.CheckOut?.ToLocalTime().ToString("HH:mm") ?? "-");
+                                        table.Cell().Text(record.Message ?? "");
+                                        table.Cell().Text(record.Success ? "✔️" : "❌");
+                                        firstRecord = false;
+                                    }
+                                }
+                            }
+                        });
+
+                    page.Footer()
+                        .AlignRight()
+                        .Text($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                });
+            });
+
+            using var stream = new MemoryStream();
+            pdf.GeneratePdf(stream);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Gets timesheet data for all users in a facility for a specific month.
+        /// </summary>
+        /// <param name="facility">The facility name</param>
+        /// <param name="year">The year</param>
+        /// <param name="month">The month</param>
+        /// <returns>Facility timesheet data</returns>
+        public async Task<object> GetFacilityTimesheetDataAsync(string facility, int year, int month)
+        {
+            // Get all users in the facility
+            var facilityUsers = await _context.Staff
+                .Where(s => s.Facility == facility)
+                .OrderBy(s => s.FullName)
+                .ToListAsync();
+
+            if (!facilityUsers.Any())
+                throw new Exception($"No users found for facility: {facility}");
+
+            // Get attendance records for all users in the facility for the specified month
+            var userIds = facilityUsers.Select(u => u.Id).ToList();
+            var attendanceRecords = await _context.AttendanceLogs
+                .Where(a => userIds.Contains(a.UserId)
+                    && a.CheckInDate.HasValue
+                    && a.CheckInDate.Value.Year == year
+                    && a.CheckInDate.Value.Month == month)
+                .OrderBy(a => a.FullName)
+                .ThenBy(a => a.CheckInDate)
+                .ToListAsync();
+
+            var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
+
+            // Group attendance records by user
+            var groupedRecords = attendanceRecords.GroupBy(a => a.UserId).ToList();
+
+            var userTimesheets = facilityUsers.Select(user =>
+            {
+                var userRecords = groupedRecords.FirstOrDefault(g => g.Key == user.Id);
+
+                return new
+                {
+                    User = new
+                    {
+                        user.Id,
+                        user.FullName,
+                        user.Designation,
+                        user.Facility,
+                        user.PhoneNumber,
+                        user.State,
+                        user.Lga
+                    },
+                    AttendanceRecords = userRecords?.Select(record => new
+                    {
+                        record.CheckInDate,
+                        record.CheckIn,
+                        record.CheckOut,
+                        record.Message,
+                        record.Success
+                    }).OrderBy(r => r.CheckInDate).ToList(),
+                    Summary = new
+                    {
+                        TotalDays = userRecords?.Count() ?? 0,
+                        SuccessfulDays = userRecords?.Count(r => r.Success) ?? 0,
+                        FailedDays = userRecords?.Count(r => !r.Success) ?? 0
+                    }
+                };
+            }).ToList();
+
+            return new
+            {
+                Facility = facility,
+                Year = year,
+                Month = month,
+                MonthName = monthName,
+                TotalUsers = facilityUsers.Count,
+                UsersWithRecords = groupedRecords.Count,
+                UsersWithoutRecords = facilityUsers.Count - groupedRecords.Count,
+                UserTimesheets = userTimesheets,
+                GeneratedAt = DateTime.UtcNow
+            };
         }
     }
 }
