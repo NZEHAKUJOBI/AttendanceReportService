@@ -308,6 +308,8 @@ namespace AttendanceReportService.Services
                     container.Page(page =>
                     {
                         page.Margin(40);
+                        // Ensure a concrete font is used to avoid blank PDFs on servers without default fonts
+                        page.DefaultTextStyle(x => x.FontFamily("Arial").FontSize(12));
 
                         // Header section
                         page.Header()
@@ -556,6 +558,8 @@ namespace AttendanceReportService.Services
                 container.Page(page =>
                 {
                     page.Margin(40);
+                    // Ensure a concrete font is used to avoid blank PDFs on servers without default fonts
+                    page.DefaultTextStyle(x => x.FontFamily("Arial").FontSize(12));
                     page.Header()
                         .Column(column =>
                         {

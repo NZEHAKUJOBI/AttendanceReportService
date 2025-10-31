@@ -8,11 +8,33 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using QuestPDF.Infrastructure;
+using QuestPDF.Drawing;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ✅ Configure QuestPDF License (Community License for development/non-commercial use)
 QuestPDF.Settings.License = LicenseType.Community;
+
+// ✅ Register a system font (Arial) to avoid blank text when no default fonts are available (e.g., IIS)
+try
+{
+    var fontsDir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+    var arialPath = Path.Combine(fontsDir, "arial.ttf");
+    if (File.Exists(arialPath))
+    {
+        using var fs = File.OpenRead(arialPath);
+        FontManager.RegisterFont(fs);
+        Console.WriteLine("✅ QuestPDF font registered: Arial");
+    }
+    else
+    {
+        Console.WriteLine($"⚠️ Arial font not found at: {arialPath}. QuestPDF will try system defaults.");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️ Failed to register Arial font for QuestPDF: {ex.Message}");
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
