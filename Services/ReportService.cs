@@ -286,30 +286,22 @@ namespace AttendanceReportService.Services
             {
                 var records = await GetUserTimesheetAsync(userId, year, month);
 
-                // Get user information from Staff table if no attendance records exist
-                var userInfo = records.Any()
-                    ? records.First()
-                    : await _context.Staff
-                        .Where(s => s.Id == userId)
-                        .Select(s => new AttendanceLog
-                        {
-                            UserId = s.Id,
-                            FullName = s.FullName,
-                            Designation = s.Designation,
-                            Facility = s.Facility,
-                            State = s.State,
-                            Lga = s.Lga,
-                            PhoneNumber = s.PhoneNumber
-                        })
-                        .FirstOrDefaultAsync();
-
+                // Resolve user info: first from records, then fallback from Staff
+                var userInfo = records.FirstOrDefault() ?? await GetUserInfoFromStaffAsync(userId);
                 if (userInfo == null)
                     throw new Exception($"No user found with ID: {userId}");
 
+                // Precompute display values
                 var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
-                var successRate = records.Any()
-                    ? Math.Round((double)records.Count(r => r.Success) / records.Count * 100, 1)
+                var total = records.Count;
+                var successCount = records.Count(r => r.Success);
+                var successRate = total > 0
+                    ? Math.Round((double)successCount / total * 100, 1)
                     : 0;
+
+                // Local helpers for formatting and info rows
+                static string FmtTime(DateTime? dt) => dt.HasValue ? dt.Value.ToLocalTime().ToString("HH:mm") : "-";
+                static string FmtDate(DateTime? dt) => dt.HasValue ? dt.Value.ToString("yyyy-MM-dd") : "-";
 
                 var pdf = Document.Create(container =>
                 {
@@ -321,12 +313,12 @@ namespace AttendanceReportService.Services
                         page.Header()
                             .Column(column =>
                             {
-                                column.Item().Text($"Attendance Timesheet")
+                                column.Item().Text("Attendance Timesheet")
                                     .FontSize(20)
                                     .Bold()
                                     .AlignCenter();
 
-                                column.Item().Text($"{userInfo.FullName}")
+                                column.Item().Text(userInfo.FullName)
                                     .FontSize(16)
                                     .Bold()
                                     .AlignCenter();
@@ -344,29 +336,20 @@ namespace AttendanceReportService.Services
                                             cols.RelativeColumn();
                                         });
 
-                                        infoTable.Cell().Border(1).Padding(5).Text("Facility:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Facility ?? "N/A");
+                                        void InfoRow(string label, string? value)
+                                        {
+                                            infoTable.Cell().Border(1).Padding(5).Text(label).Bold();
+                                            infoTable.Cell().Border(1).Padding(5).Text(string.IsNullOrWhiteSpace(value) ? "N/A" : value);
+                                        }
 
-                                        infoTable.Cell().Border(1).Padding(5).Text("Designation:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Designation ?? "N/A");
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("State:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.State ?? "N/A");
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("LGA:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Lga ?? "N/A");
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("Phone:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.PhoneNumber ?? "N/A");
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("Total Records:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(records.Count.ToString());
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("Successful Days:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text(records.Count(r => r.Success).ToString());
-
-                                        infoTable.Cell().Border(1).Padding(5).Text("Success Rate:").Bold();
-                                        infoTable.Cell().Border(1).Padding(5).Text($"{successRate}%");
+                                        InfoRow("Facility:", userInfo.Facility);
+                                        InfoRow("Designation:", userInfo.Designation);
+                                        InfoRow("State:", userInfo.State);
+                                        InfoRow("LGA:", userInfo.Lga);
+                                        InfoRow("Phone:", userInfo.PhoneNumber);
+                                        InfoRow("Total Records:", total.ToString());
+                                        InfoRow("Successful Days:", successCount.ToString());
+                                        InfoRow("Success Rate:", $"{successRate}%");
                                     });
                             });
 
@@ -432,35 +415,22 @@ namespace AttendanceReportService.Services
                                         });
 
                                         // Table rows
-                                        foreach (var log in records.OrderBy(r => r.CheckInDate))
+                                        foreach (var log in records.OrderBy(r => r.CheckInDate ?? r.CheckIn ?? r.CheckOut))
                                         {
-                                            table.Cell()
-                                                .Border(1)
-                                                .Padding(5)
-                                                .Text(log.CheckInDate?.ToString("yyyy-MM-dd") ?? "-");
+                                            var date = (log.CheckInDate ?? log.CheckIn ?? log.CheckOut);
+                                            var message = string.IsNullOrWhiteSpace(log.Message)
+                                                ? ""
+                                                : (log.Message!.Length > 120 ? log.Message.Substring(0, 120) + "…" : log.Message);
 
-                                            table.Cell()
-                                                .Border(1)
-                                                .Padding(5)
-                                                .Text(log.CheckIn?.ToLocalTime().ToString("HH:mm") ?? "-");
-
-                                            table.Cell()
-                                                .Border(1)
-                                                .Padding(5)
-                                                .Text(log.CheckOut?.ToLocalTime().ToString("HH:mm") ?? "-");
-
-                                            table.Cell()
-                                                .Border(1)
-                                                .Padding(5)
-                                                .Text(log.Message ?? "");
-
-                                            table.Cell()
-                                                .Border(1)
-                                                .Padding(5)
-                                                .Text(log.Success ? "✔️" : "❌")
-                                                .AlignCenter();
+                                            table.Cell().Border(1).Padding(5).Text(FmtDate(date));
+                                            table.Cell().Border(1).Padding(5).Text(FmtTime(log.CheckIn));
+                                            table.Cell().Border(1).Padding(5).Text(FmtTime(log.CheckOut));
+                                            table.Cell().Border(1).Padding(5).Text(message);
+                                            table.Cell().Border(1).Padding(5).Text(log.Success ? "✔️" : "❌").AlignCenter();
                                         }
                                     });
+
+                                    column.Item().PaddingTop(6).Text("Legend: ✔️ Success, ❌ Failed").FontSize(10).Italic();
                                 }
                             });
 
@@ -480,6 +450,23 @@ namespace AttendanceReportService.Services
             {
                 throw new Exception($"Error generating user timesheet PDF: {ex.Message}", ex);
             }
+        }
+
+        private async Task<AttendanceLog?> GetUserInfoFromStaffAsync(Guid userId)
+        {
+            return await _context.Staff
+                .Where(s => s.Id == userId)
+                .Select(s => new AttendanceLog
+                {
+                    UserId = s.Id,
+                    FullName = s.FullName,
+                    Designation = s.Designation,
+                    Facility = s.Facility,
+                    State = s.State,
+                    Lga = s.Lga,
+                    PhoneNumber = s.PhoneNumber
+                })
+                .FirstOrDefaultAsync();
         }
 
         /// <summary>
