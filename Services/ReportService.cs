@@ -205,7 +205,26 @@ namespace AttendanceReportService.Services
             int month
         )
         {
-            return await _context
+            // First, check if user exists in Staff table
+            var userExists = await _context.Staff.AnyAsync(s => s.Id == userId);
+            if (!userExists)
+            {
+                throw new Exception($"User with ID {userId} not found in Staff table");
+            }
+
+            // Get all attendance records for this user (for debugging)
+            var allUserRecords = await _context.AttendanceLogs
+                .Where(a => a.UserId == userId)
+                .ToListAsync();
+
+            // If no records at all, return empty list
+            if (!allUserRecords.Any())
+            {
+                return new List<AttendanceLog>();
+            }
+
+            // Filter by year and month
+            var filteredRecords = await _context
                 .AttendanceLogs.Where(a =>
                     a.UserId == userId
                     && a.CheckInDate.HasValue
@@ -214,6 +233,8 @@ namespace AttendanceReportService.Services
                 )
                 .OrderBy(a => a.CheckInDate)
                 .ToListAsync();
+
+            return filteredRecords;
         }
 
         /// <summary>
@@ -267,6 +288,9 @@ namespace AttendanceReportService.Services
                     throw new Exception($"No user found with ID: {userId}");
 
                 var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month);
+                var successRate = records.Any()
+                    ? Math.Round((double)records.Count(r => r.Success) / records.Count * 100, 1)
+                    : 0;
 
                 var pdf = Document.Create(container =>
                 {
@@ -301,23 +325,29 @@ namespace AttendanceReportService.Services
                                             cols.RelativeColumn();
                                         });
 
-                                        infoTable.Cell().Text("Facility:").Bold();
-                                        infoTable.Cell().Text(userInfo.Facility ?? "N/A");
+                                        infoTable.Cell().Border(1).Padding(5).Text("Facility:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Facility ?? "N/A");
 
-                                        infoTable.Cell().Text("Designation:").Bold();
-                                        infoTable.Cell().Text(userInfo.Designation ?? "N/A");
+                                        infoTable.Cell().Border(1).Padding(5).Text("Designation:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Designation ?? "N/A");
 
-                                        infoTable.Cell().Text("State:").Bold();
-                                        infoTable.Cell().Text(userInfo.State ?? "N/A");
+                                        infoTable.Cell().Border(1).Padding(5).Text("State:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.State ?? "N/A");
 
-                                        infoTable.Cell().Text("LGA:").Bold();
-                                        infoTable.Cell().Text(userInfo.Lga ?? "N/A");
+                                        infoTable.Cell().Border(1).Padding(5).Text("LGA:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.Lga ?? "N/A");
 
-                                        infoTable.Cell().Text("Total Records:").Bold();
-                                        infoTable.Cell().Text(records.Count.ToString());
+                                        infoTable.Cell().Border(1).Padding(5).Text("Phone:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(userInfo.PhoneNumber ?? "N/A");
 
-                                        infoTable.Cell().Text("Successful Days:").Bold();
-                                        infoTable.Cell().Text(records.Count(r => r.Success).ToString());
+                                        infoTable.Cell().Border(1).Padding(5).Text("Total Records:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(records.Count.ToString());
+
+                                        infoTable.Cell().Border(1).Padding(5).Text("Successful Days:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text(records.Count(r => r.Success).ToString());
+
+                                        infoTable.Cell().Border(1).Padding(5).Text("Success Rate:").Bold();
+                                        infoTable.Cell().Border(1).Padding(5).Text($"{successRate}%");
                                     });
                             });
 

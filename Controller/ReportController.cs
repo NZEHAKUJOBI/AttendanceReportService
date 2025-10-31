@@ -101,9 +101,6 @@ namespace AttendanceReportService.Controllers
         {
             try
             {
-                // Get attendance records
-                var records = await _reportService.GetUserTimesheetAsync(userId, year, month);
-
                 // Get user info from Staff table  
                 var userInfo = await _context.Staff
                     .Where(s => s.Id == userId)
@@ -119,10 +116,35 @@ namespace AttendanceReportService.Controllers
                     })
                     .FirstOrDefaultAsync();
 
+                if (userInfo == null)
+                {
+                    return BadRequest(new
+                    {
+                        status = "error",
+                        message = $"User with ID {userId} not found in Staff table",
+                        totalStaffCount = await _context.Staff.CountAsync(),
+                        sampleStaffIds = await _context.Staff.Take(5).Select(s => s.Id).ToListAsync()
+                    });
+                }
+
+                // Get ALL attendance records for this user (not filtered by date)
+                var allUserRecords = await _context.AttendanceLogs
+                    .Where(a => a.UserId == userId)
+                    .OrderBy(a => a.CheckInDate)
+                    .ToListAsync();
+
+                // Get attendance records for the specific month
+                var records = await _reportService.GetUserTimesheetAsync(userId, year, month);
+
+                // Get some general stats
+                var totalAttendanceRecords = await _context.AttendanceLogs.CountAsync();
+                var totalUniqueUsers = await _context.AttendanceLogs.Select(a => a.UserId).Distinct().CountAsync();
+
                 return Ok(new
                 {
+                    RequestedParams = new { userId, year, month },
                     UserInfo = userInfo,
-                    AttendanceRecords = records.Select(r => new
+                    FilteredAttendanceRecords = records.Select(r => new
                     {
                         r.Id,
                         r.UserId,
@@ -135,22 +157,44 @@ namespace AttendanceReportService.Controllers
                         r.Facility,
                         r.Designation
                     }).ToList(),
+                    AllUserAttendanceRecords = allUserRecords.Select(r => new
+                    {
+                        r.Id,
+                        r.CheckInDate,
+                        CheckInDateInfo = new
+                        {
+                            Year = r.CheckInDate?.Year,
+                            Month = r.CheckInDate?.Month,
+                            Day = r.CheckInDate?.Day,
+                            Kind = r.CheckInDate?.Kind.ToString()
+                        },
+                        r.Success,
+                        r.Message
+                    }).ToList(),
                     Summary = new
                     {
-                        TotalRecords = records.Count,
-                        SuccessfulDays = records.Count(r => r.Success),
-                        FailedDays = records.Count(r => !r.Success),
-                        DateRange = records.Any() ? new
+                        RequestedYearMonth = $"{year}-{month:D2}",
+                        FilteredRecords = records.Count,
+                        AllUserRecords = allUserRecords.Count,
+                        SuccessfulFilteredDays = records.Count(r => r.Success),
+                        FailedFilteredDays = records.Count(r => !r.Success),
+                        DateRangeOfAllRecords = allUserRecords.Any() ? new
                         {
-                            From = records.Min(r => r.CheckInDate),
-                            To = records.Max(r => r.CheckInDate)
+                            From = allUserRecords.Min(r => r.CheckInDate),
+                            To = allUserRecords.Max(r => r.CheckInDate)
                         } : null
+                    },
+                    DatabaseStats = new
+                    {
+                        TotalAttendanceRecords = totalAttendanceRecords,
+                        TotalUniqueUsersWithAttendance = totalUniqueUsers,
+                        TotalStaffMembers = await _context.Staff.CountAsync()
                     }
                 });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { status = "error", message = ex.Message });
+                return BadRequest(new { status = "error", message = ex.Message, stackTrace = ex.StackTrace });
             }
         }
 
@@ -248,7 +292,71 @@ namespace AttendanceReportService.Controllers
         }
 
         /// <summary>
-        /// Ge
+        /// Debug endpoint to check database state and sample data.
+        /// </summary>
+        [HttpGet("debug/database-state")]
+        [SwaggerOperation(Summary = "Check database state", Description = "Returns information about what data exists in the database")]
+        public async Task<IActionResult> GetDatabaseState()
+        {
+            try
+            {
+                var staffCount = await _context.Staff.CountAsync();
+                var attendanceCount = await _context.AttendanceLogs.CountAsync();
+                var userCount = await _context.Users.CountAsync();
+
+                var sampleStaff = await _context.Staff
+                    .Take(3)
+                    .Select(s => new { s.Id, s.FullName, s.Facility, s.Designation })
+                    .ToListAsync();
+
+                var sampleAttendance = await _context.AttendanceLogs
+                    .Take(3)
+                    .ToListAsync();
+
+                var sampleAttendanceFormatted = sampleAttendance.Select(a => new
+                {
+                    a.Id,
+                    a.UserId,
+                    a.FullName,
+                    a.CheckInDate,
+                    a.Facility,
+                    CheckInDateInfo = new
+                    {
+                        Year = a.CheckInDate?.Year,
+                        Month = a.CheckInDate?.Month,
+                        Day = a.CheckInDate?.Day
+                    }
+                }).ToList();
+
+                var uniqueUserIdsInAttendance = await _context.AttendanceLogs
+                    .Select(a => a.UserId)
+                    .Distinct()
+                    .Take(5)
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    DatabaseCounts = new
+                    {
+                        Staff = staffCount,
+                        AttendanceLogs = attendanceCount,
+                        Users = userCount
+                    },
+                    SampleData = new
+                    {
+                        Staff = sampleStaff,
+                        AttendanceLogs = sampleAttendanceFormatted,
+                        UniqueUserIdsInAttendance = uniqueUserIdsInAttendance
+                    },
+                    DatabaseStatus = staffCount > 0 || attendanceCount > 0 ? "Has Data" : "Empty"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message, stackTrace = ex.StackTrace });
+            }
+        }
+
 
     }
 }
