@@ -218,13 +218,6 @@ namespace AttendanceReportService.Services
             int month
         )
         {
-            // First, check if user exists in Staff table
-            var userExists = await _context.Staff.AnyAsync(s => s.Id == userId);
-            if (!userExists)
-            {
-                throw new Exception($"User with ID {userId} not found in Staff table");
-            }
-
             // Use a coalesced date (CheckInDate || CheckIn || CheckOut) and filter by UTC month range
             var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
             var end = start.AddMonths(1);
