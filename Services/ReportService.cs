@@ -57,6 +57,19 @@ namespace AttendanceReportService.Services
                 })
                 .ToList();
 
+            // Best-effort backfill: if CheckInDate is missing but CheckIn/CheckOut exist, derive the date portion (UTC)
+            foreach (var e in entities)
+            {
+                if (!e.CheckInDate.HasValue)
+                {
+                    var d = e.CheckIn ?? e.CheckOut;
+                    if (d.HasValue)
+                    {
+                        e.CheckInDate = new DateTime(d.Value.Year, d.Value.Month, d.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                    }
+                }
+            }
+
             await _context.AttendanceLogs.AddRangeAsync(entities);
             await _context.SaveChangesAsync();
 
@@ -212,29 +225,35 @@ namespace AttendanceReportService.Services
                 throw new Exception($"User with ID {userId} not found in Staff table");
             }
 
-            // Get all attendance records for this user (for debugging)
-            var allUserRecords = await _context.AttendanceLogs
+            // Use a coalesced date (CheckInDate || CheckIn || CheckOut) and filter by UTC month range
+            var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var end = start.AddMonths(1);
+
+            var records = await _context.AttendanceLogs
+                .AsNoTracking()
                 .Where(a => a.UserId == userId)
+                .Where(a =>
+                    (a.CheckInDate ?? a.CheckIn ?? a.CheckOut) != null &&
+                    (a.CheckInDate ?? a.CheckIn ?? a.CheckOut) >= start &&
+                    (a.CheckInDate ?? a.CheckIn ?? a.CheckOut) < end
+                )
+                .OrderBy(a => (a.CheckInDate ?? a.CheckIn ?? a.CheckOut))
                 .ToListAsync();
 
-            // If no records at all, return empty list
-            if (!allUserRecords.Any())
+            // Normalize missing CheckInDate for display consistency (does not persist)
+            foreach (var rec in records)
             {
-                return new List<AttendanceLog>();
+                if (!rec.CheckInDate.HasValue)
+                {
+                    var d = rec.CheckIn ?? rec.CheckOut;
+                    if (d.HasValue)
+                    {
+                        rec.CheckInDate = new DateTime(d.Value.Year, d.Value.Month, d.Value.Day, 0, 0, 0, DateTimeKind.Utc);
+                    }
+                }
             }
 
-            // Filter by year and month
-            var filteredRecords = await _context
-                .AttendanceLogs.Where(a =>
-                    a.UserId == userId
-                    && a.CheckInDate.HasValue
-                    && a.CheckInDate.Value.Year == year
-                    && a.CheckInDate.Value.Month == month
-                )
-                .OrderBy(a => a.CheckInDate)
-                .ToListAsync();
-
-            return filteredRecords;
+            return records;
         }
 
         /// <summary>
